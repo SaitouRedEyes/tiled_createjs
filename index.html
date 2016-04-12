@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="lib/createjs-2013.05.14.min.js"></script>
+	<script src="js/scene_manager.js"></script>
+	<script src="js/title_screen.js"></script>	
+	<script src="js/map_template.js"></script>
+	<script src="js/victory_screen.js"></script>
+	<script src="js/gui_manager.js"></script>
+	<script src="js/player.js"></script>
+	<script src="js/enemy.js"></script>
+	<script src="js/item_manager.js"></script>
+	<script src="js/area01_json.js"></script>
+	<script src="js/area02_json.js"></script>
+	<script src="js/area03_json.js"></script>
+    <script>
+		var stage;
+		var view; 
+		var queue;
+		var gravity = 6;
+		
+		var map;
+		var collisionTiles;
+		var collisionTilesFGID;
+		
+		var player;
+		var enemy;
+		var itemManager;
+		var coins;
+		var guiManager;
+		var currentScore = 0;
+		
+		var fade;
+		var fadeTransition = false;
+		
+		var transitionObject;
+		var numberOfScreens;
+		
+		var sceneManager = new SceneManager();			
+		var currentScene = sceneManager.TitleScreen();
+		
+		var loop1;
+		
+        function init() 
+		{
+			stage = new createjs.Stage("demoCanvas");
+			
+			Preload();
+        }
+		
+		function Preload()
+		{
+			//Usando a classe preloadjs
+			queue = new createjs.LoadQueue(false);
+			queue.installPlugin(createjs.Sound);
+			queue.loadManifest([{id:"backgroundParallax0", src:"images/area01_bkg0.png"},
+								{id:"backgroundParallax1", src:"images/area01_bkg1.png"},
+								{id:"level1Spritesheet", src:"images/area01_level_tiles.png"},
+								{id:"spritesheetCollision", src:"images/metatiles32x32.png"},
+								{id:"player", src:"images/gripe_run_right.png"},
+								{id:"enemy", src:"images/wheelie_right.png"},
+								{id:"coin", src:"images/spinning_coin_gold.png"},
+								{id:"mainSound", src:"sounds/dst-inertexponent.mp3"},
+								{id:"coinSound", src:"sounds/cling.mp3"},
+								{id:"jumpSound", src:"sounds/jump.mp3"},
+								{id:"fade", src:"images/Fade.jpg"},
+								{id:"titleScreen", src:"images/title_screen.png"},
+								{id:"victoryScreen", src:"images/victory_screen.jpg"},
+								]);
+								
+			queue.addEventListener("complete", CreateElements);					
+		}
+		
+		function CreateElements(event)
+		{
+			fade = new createjs.Bitmap(queue.getResult("fade"));	
+			fade.alpha = 0;
+			
+			if(loop1 == null || loop1.playState != createjs.Sound.PLAY_SUCCEEDED) 
+				loop1 = createjs.Sound.play("mainSound");
+			
+			switch(currentScene)
+			{
+				case sceneManager.TitleScreen(): var titleScreen = new TitleScreen();
+												 titleScreen.Draw(); break;
+												 
+				case sceneManager.Map1(): numberOfScreens = 2; 
+											var mapTemplate = new MapTemplate();
+											enemy = new Enemy();
+											mapTemplate.Draw(data); break;
+											
+				case sceneManager.Map2(): numberOfScreens = 2; 
+											var mapTemplate = new MapTemplate();
+											enemy = new Enemy();
+											mapTemplate.Draw(data2); break;
+											
+				case sceneManager.Map3(): numberOfScreens = 1; 
+											var mapTemplate = new MapTemplate();
+											mapTemplate.Draw(data3); break;
+				
+				case sceneManager.VictoryScreen(): loop1.stop(); 
+													numberOfScreens = 1; 
+													var victoryScreen = new VictoryScreen();
+													victoryScreen.Draw(); break;
+			}
+				
+			createjs.Ticker.setFPS(60); //Intervalo = 1000ms / 30fps
+			//createjs.Ticker.setInterval(33.3); //Em milisegundos
+			createjs.Ticker.addEventListener("tick", _tick);
+		}
+		
+		function _tick(event)
+		{	
+			//console.log(parseInt(event.time / 1000));   --- contador em segundos
+			//console.log(Math.abs(parseInt(event.time / 1000) - 60));   --- contagem regressiva
+			
+			
+			if(currentScene != sceneManager.TitleScreen() &&
+				currentScene != sceneManager.VictoryScreen())
+			{
+				player.Update();
+				enemy.Update();
+				UpdateContainer();
+			}
+			
+			stage.update();			
+		}
+		
+		document.addEventListener("keydown", _keyDown, true);
+		document.addEventListener("keyup", _keyUp, true);
+			
+		function _keyDown(event)
+		{	
+			switch(event.keyCode)
+			{
+				case 39: player.moveRight = true; break;
+				case 37: player.moveLeft = true; break;
+				case 38: player.moveUp = true; break;
+				case 13: if(!fadeTransition) TransitionTime(); break;
+			}
+		}
+		
+		function _keyUp(event)
+		{	
+			switch(event.keyCode)
+			{
+				case 39: player.moveRight = false; 
+						 player.bitmap.gotoAndStop("stand"); break;
+				case 37: player.moveLeft = false; 
+						 player.bitmap.gotoAndStop("stand"); break;
+				case 38: player.moveUp = false; break;
+			}
+		}
+		
+		function TransitionTime()
+		{
+			if(currentScene == sceneManager.TitleScreen() ||
+				currentScene == sceneManager.VictoryScreen())
+			{	
+				FadeOut();
+			}
+		}
+		
+		function UpdateContainer()
+		{
+			var xScreen = player.bitmap.x - Math.abs(view.x);
+			var percentScreen = stage.canvas.width * 0.3;
+			
+			// andando para direita
+			if(player.speedX > 0 )
+			{
+				if((stage.canvas.width - xScreen) < percentScreen)
+				{
+					view.x -= player.speedX;
+				}
+				else if(xScreen < percentScreen)
+				{
+					view.x += player.speedX;
+				}
+			} 
+		
+			if( view.x > 0 )
+			{
+				view.x = 0;
+			}
+			else if(view.x < -1 * map.tilesets[0].imagewidth)
+			{
+				view.x = -1 * map.tilesets[0].imagewidth;
+			}
+		}
+		
+		function ImageObjectCollision(object1, object2, collisionOffset)
+		{			
+			if(Math.abs(object1.x - object2.x) < (object1.regX - collisionOffset) + object2.regX &&
+				Math.abs(object1.y - object2.y) < object1.regY + object2.regY)
+			{
+				return true;
+			}
+			else
+			{
+				return false;
+			}
+		}
+		
+		function JSONObjectCollision(object1, object2, collisionOffset)
+		{
+			if(Math.abs(object1.x - object2.x) < (object1.regX - collisionOffset) + object2.width / 2 &&
+				Math.abs(object1.y - object2.y) < object1.regY + object2.height / 2)
+			{
+				return true;
+			}
+			else
+			{
+				return false;
+			}
+		}
+			
+		function FadeOut()
+		{
+			fadeTransition = true;
+			createjs.Tween.get(fade).to({alpha:1}, 2000).call(StartNewLevel);
+		}
+		
+		function StartNewLevel()
+		{	
+			stage.removeAllChildren();
+			
+			if(currentScene == sceneManager.TitleScreen()) currentScene = sceneManager.Map1();
+			else if(currentScene == sceneManager.VictoryScreen()) currentScene = sceneManager.TitleScreen();
+			else currentScene =  parseInt(transitionObject.properties.goto);
+			
+			fadeTransition = false;
+			CreateElements();
+		}
+		
+    </script>
+</head>
+<body onLoad="init();">
+    <canvas id="demoCanvas" width="640" height="600">
+        alternate content
+    </canvas>
+</body>
+</html>

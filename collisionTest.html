@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="lib/createjs-2013.05.14.min.js"></script>
+    <script>
+	var stage;
+	
+	var shape1;
+	var shape2;
+	
+	function init()
+	{
+		stage = new createjs.Stage("demoCanvas");
+		
+		shape1 = new createjs.Shape();
+		shape1.graphics.beginFill("#ff0000").drawRect(0, 0, 100, 100);
+		shape1.regX = 50;
+		shape1.regY = 50;
+		
+		stage.addChild(shape1);
+		
+		shape2 = new createjs.Shape();
+		shape2.graphics.beginFill("#ff0000").drawRect(0, 0, 100, 100);
+		shape2.regX = 50;
+		shape2.regY = 50;
+		shape2.x = stage.canvas.width / 2;
+		shape2.y = stage.canvas.height / 2;
+		
+		stage.addChild(shape2);
+		
+		createjs.Ticker.setFPS(60); //Intervalo = 1000ms / 30fps
+		//createjs.Ticker.setInterval(33.3); //Em milisegundos
+		createjs.Ticker.addEventListener("tick", _tick);
+	}
+	
+	function _tick(event)
+	{	
+		shape1.x = stage.mouseX;
+		shape1.y = stage.mouseY;
+		
+		if(PlayerCollision(shape1, shape2))
+		{
+			shape2.visible = false;
+		}
+		else
+		{
+			shape2.visible = true;
+		}
+		
+		stage.update();			
+	}
+	
+	function PlayerCollision(player, object)
+	{
+		if(Math.abs(player.x - object.x) < player.regX + object.regX &&
+			Math.abs(player.y - object.y) < player.regY + object.regY)
+		{
+			return true;
+		}
+		else
+		{
+			return false;
+		}
+	}
+		
+    </script>
+</head>
+<body onLoad="init();">
+    <canvas id="demoCanvas" width="640" height="600">
+        alternate content
+    </canvas>
+</body>
+</html>
